@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -68,6 +67,10 @@
             <div class="bg-white p-8 rounded-xl shadow-2xl border border-red-100 w-full max-w-sm">
                 <h2 class="text-3xl font-bold mb-6 text-center text-red-600">Worker Log In</h2>
                 
+                <p class="text-xs mb-4 text-center text-gray-500 bg-yellow-50 p-2 rounded">
+                    **Default Test Credentials:** moon@dishdashers.com / 3.14159
+                </p>
+
                 <div class="space-y-4">
                     <div>
                         <label for="auth-email" class="block text-sm font-medium text-gray-700">Worker ID (Email)</label>
@@ -213,7 +216,7 @@
         // Global Setup
         setLogLevel('Debug');
         
-        // --- START FIX FOR EXTERNAL HOSTING ---
+        // --- START FIREBASE CONFIGURATION ---
         // 1. HARDCODE CONFIG IF NOT IN CANVAS ENVIRONMENT
         // This configuration uses the user's provided Firebase credentials.
         const YOUR_FIREBASE_CONFIG_HERE = {
@@ -230,7 +233,7 @@
         // Use the Canvas config if it exists, otherwise use the hardcoded config above.
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : YOUR_FIREBASE_CONFIG_HERE; 
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        // --- END FIX FOR EXTERNAL HOSTING ---
+        // --- END FIREBASE CONFIGURATION ---
 
         let app;
         let db;
@@ -242,7 +245,7 @@
         let selectedOrder = null;
         let selectedCenter = null;
 
-        // --- Worker Credentials ---
+        // --- Worker Credentials (Used for local mock check) ---
         let MOCK_WORKER_ID = 'moon@dishdashers.com';
         let MOCK_WORKER_PASS = '3.14159';
         const DOMAIN = '@dishdashers.com';
@@ -381,7 +384,7 @@
                     // If the user isn't logged in with the MOCK credentials, show the login screen
                     if (appContainer.classList.contains('hidden')) {
                         // Display user ID for debugging in external environments
-                        const displayEmail = MOCK_WORKER_ID; // Use mock email since Firebase doesn't know it
+                        const displayEmail = MOCK_WORKER_ID; 
                         document.getElementById('user-id-display').textContent = `User ID: ${user.uid} (Ready to Log In as ${displayEmail})`;
                         showScreen('auth-screen');
                     }
@@ -404,14 +407,21 @@
 
         window.handleSignIn = async () => {
             const { email, password } = getAuthCredentials();
+
+            // --- DEBUG LOGS ADDED HERE ---
+            console.log(`--- Login Attempt ---`);
+            console.log(`User Input Email: ${email}`);
+            console.log(`Checking against MOCK_WORKER_ID: ${MOCK_WORKER_ID}`);
+            console.log(`User Input Password: ${password.length > 0 ? 'Provided' : 'Missing'}`);
+            // --- END DEBUG LOGS ---
             
             // The local check still determines if the user is a "worker"
             if (email === MOCK_WORKER_ID && password === MOCK_WORKER_PASS) {
                 
                 const user = auth.currentUser;
-                if (!user) {
-                     // This means Firebase initialization/anonymous sign-in failed.
-                     return showMessage("Authentication setup failed. Check console and Firebase config.", 'error', true);
+                if (!user || !user.uid) {
+                     // This means the initial anonymous Firebase sign-in failed.
+                     return showMessage("Authentication setup failed. Could not get a Firebase User ID. Check console for Firebase connection errors.", 'error', true);
                 }
 
                 document.getElementById('current-user-id').textContent = user.uid;
