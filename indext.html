@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DishDashers Dispatch Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .scrollable {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .order-card, .center-card {
+            transition: all 0.15s ease-in-out;
+            cursor: pointer;
+        }
+        .order-card:hover:not(.selected) {
+            background-color: #ffe4e6; /* Light pink hover for incoming */
+        }
+        .center-card:hover:not(.selected):not(.full) {
+            background-color: #e0f2fe; /* Light blue hover for centers */
+        }
+        .selected {
+            border-color: #e53e3e !important;
+            background-color: #fefcbf; /* Yellow for selected items */
+            transform: scale(1.02);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        .full {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+            border-style: dashed;
+        }
+        /* Custom scrollbar for aesthetics */
+        .scrollable::-webkit-scrollbar {
+            width: 8px;
+        }
+        .scrollable::-webkit-scrollbar-thumb {
+            background-color: #fda4af;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-5xl font-extrabold text-red-600 tracking-tighter">DishDashers Dispatch Center</h1>
+            <p id="user-id-display" class="mt-2 text-sm text-gray-500">Loading User Status...</p>
+        </header>
+
+        <!-- 1. Authentication Screen (Initially Visible) -->
+        <div id="auth-screen" class="flex items-center justify-center min-h-screen -mt-24">
+            <div class="bg-white p-8 rounded-xl shadow-2xl border border-red-100 w-full max-w-sm">
+                <h2 class="text-3xl font-bold mb-6 text-center text-red-600">Worker Log In</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="auth-email" class="block text-sm font-medium text-gray-700">Worker ID (Email)</label>
+                        <input type="email" id="auth-email" placeholder="Your work email address" required
+                               class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label for="auth-password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="auth-password" placeholder="Password" required
+                               class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-3">
+                    <button onclick="handleSignIn()"
+                            class="w-full py-3 bg-red-600 text-white font-bold rounded-xl transition shadow-md hover:bg-red-700">
+                        Log In
+                    </button>
+                    <!-- Sign Up Button to transition to sign-up screen -->
+                    <button onclick="handleSignUp()"
+                            class="w-full py-3 bg-blue-100 text-blue-800 font-bold rounded-xl transition shadow-md hover:bg-blue-200">
+                        New Worker Sign Up
+                    </button>
+                    <div id="auth-message-box" class="mt-4 p-3 rounded-lg text-sm hidden" role="alert"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 2. Sign Up Screen (Initially Hidden) -->
+        <div id="signup-screen" class="flex items-center justify-center min-h-screen -mt-24 hidden">
+            <div class="bg-white p-8 rounded-xl shadow-2xl border border-blue-100 w-full max-w-sm">
+                <h2 class="text-3xl font-bold mb-6 text-center text-blue-600">Register New Worker</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="signup-email-local" class="block text-sm font-medium text-gray-700">Worker ID Prefix</label>
+                        <div class="mt-1 flex rounded-lg shadow-sm">
+                            <input type="text" id="signup-email-local" placeholder="e.g., yourname" required
+                                   class="flex-1 block w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-blue-500 focus:border-blue-500">
+                            <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                                @dishdashers.com
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="signup-password" class="block text-sm font-medium text-gray-700">Password (Min 6 chars)</label>
+                        <input type="password" id="signup-password" placeholder="Set your password" required
+                               class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-3">
+                    <button onclick="completeSignUp()"
+                            class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl transition shadow-md hover:bg-blue-700">
+                        Register Account
+                    </button>
+                    <button onclick="goToLogin()"
+                            class="w-full py-3 text-sm text-gray-600 font-medium hover:text-red-500 transition">
+                        ← Back to Log In
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 3. Main Dispatch Grid Layout (Initially Hidden) -->
+        <div id="app-container" class="grid grid-cols-1 lg:grid-cols-3 gap-6 hidden">
+
+            <!-- 1. Incoming Orders Panel (Left) -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-bold mb-4 text-red-600 flex justify-between items-center">
+                    <span>Incoming Orders</span>
+                </h2>
+                <div id="orders-list" class="scrollable space-y-3">
+                    <p class="text-center text-gray-500" id="orders-status">Awaiting data...</p>
+                </div>
+            </div>
+
+            <!-- 2. Dispatch Management Panel (Center) -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-bold mb-4 text-orange-500">Dispatch Center</h2>
+                
+                <div id="center-details" class="h-full">
+                    <div id="selected-order-display" class="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-200 mb-6">
+                        <p class="text-gray-600 font-semibold">Selected Order:</p>
+                        <p id="order-info" class="text-xl text-gray-800 italic">Please select an order from the left panel.</p>
+                        <p id="user-info" class="text-sm text-gray-500 mt-1"></p>
+                    </div>
+
+                    <h3 class="text-xl font-semibold mb-3 text-gray-700">Available Dashing Centers</h3>
+                    <div id="centers-list" class="scrollable space-y-3 max-h-72">
+                        <p class="text-center text-gray-500" id="centers-status">Awaiting order selection...</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 3. Delivery Confirmation Panel (Right) -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-bold mb-4 text-green-600">Final Dispatch</h2>
+
+                <div class="space-y-6">
+                    <div>
+                        <p class="font-medium text-gray-700 mb-2">Selected Dashing Center:</p>
+                        <div id="final-center-info" class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-gray-600">
+                            No Center selected.
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="delivery-address" class="block text-sm font-medium text-gray-700 mb-1">
+                            Confirm Delivery Address
+                        </label>
+                        <input type="text" id="delivery-address" placeholder="e.g., 123 Maple Street, Apt 4A"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500" required>
+                    </div>
+                    
+                    <button id="dispatch-button" onclick="dispatchOrder()"
+                            class="w-full py-3 bg-gray-400 text-white font-bold rounded-xl transition shadow-md"
+                            disabled>
+                        DISPATCH ORDER NOW
+                    </button>
+
+                    <div id="message-box" class="mt-4 p-3 rounded-lg text-sm hidden" role="alert"></div>
+
+                    <!-- User ID Display for Collaboration -->
+                    <p class="text-xs text-gray-400 mt-4 break-words">
+                        <span class="font-bold">Your Dispatch ID:</span> <span id="current-user-id"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, setDoc, query, where, getDocs, updateDoc, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Setup
+        setLogLevel('Debug');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+
+        let orders = [];
+        let centers = [];
+        let selectedOrder = null;
+        let selectedCenter = null;
+
+        // --- Worker Credentials ---
+        let MOCK_WORKER_ID = 'moon@dishdashers.com';
+        let MOCK_WORKER_PASS = '3.14159';
+        const DOMAIN = '@dishdashers.com';
+        
+        // --- Random Data Arrays for Order Generation ---
+        const CUSTOMER_NAMES = ['Anya S.', 'Ben J.', 'Chloe K.', 'David L.', 'Emi O.', 'Frank P.', 'Grace Q.', 'Henry R.', 'Ivy T.', 'Jake U.'];
+        const RESTAURANTS = [
+            { name: 'Pizza Palace', type: 'West' },
+            { name: 'Sushi Stop', type: 'Central' },
+            { name: 'Burger Bliss', type: 'East' },
+            { name: 'Taco Town', type: 'South' },
+            { name: 'Waffle World', type: 'West' },
+            { name: 'Noodle Nest', type: 'Central' },
+            { name: 'The Curry House', type: 'East' },
+            { name: 'Smoothie Central', type: 'South' }
+        ];
+        const ITEMS = ['Large Pepperoni Pizza', 'California Roll Set', 'Double Cheeseburger Combo', 'Chicken Fajita Tacos', 'Strawberry Waffle', 'Beef Ramen', 'Butter Chicken', 'Mango Smoothie'];
+        const STREETS = ['Main St', 'Oak Ave', 'Pine Ln', 'River Rd', 'Elm Blvd', 'Maple Dr', 'Cedar Pkwy', 'Sunset Strip'];
+
+
+        // --- Dashing Center & Distance Logic ---
+
+        const MOCK_CENTERS = [
+            { id: 'center1', name: 'Westside Depot', maxCapacity: 6, occupiedSlots: 0, locationType: 'West' },
+            { id: 'center2', name: 'Metro Core Hub', maxCapacity: 6, occupiedSlots: 0, locationType: 'Central' },
+            { id: 'center3', name: 'Eastern Warehouse', maxCapacity: 6, occupiedSlots: 0, locationType: 'East' },
+            { id: 'center4', name: 'Southern Satellite', maxCapacity: 6, occupiedSlots: 0, locationType: 'South' },
+        ];
+        
+        /** Mock distance calculation based on location type proximity. */
+        const getCenterDistance = (centerLocationType, restaurantLocationType) => {
+            // Define mock distances (in miles)
+            const distances = {
+                // Closer to own region
+                West_West: 1.2, Central_Central: 0.9, East_East: 1.5, South_South: 1.1,
+                // Moderate distance
+                West_Central: 3.5, Central_East: 4.0, East_South: 3.8, South_West: 4.5,
+                // Further away
+                West_East: 6.0, Central_South: 5.5, 
+            };
+            
+            // Create a normalized key, handles reverse pairs (e.g., West_Central == Central_West)
+            const key1 = `${centerLocationType}_${restaurantLocationType}`;
+            const key2 = `${restaurantLocationType}_${centerLocationType}`;
+            
+            return distances[key1] || distances[key2] || 7.0; // Default far distance
+        };
+
+        // --- Utility Functions ---
+
+        /** Shows a temporary message to the user */
+        const showMessage = (text, type = 'success', authScreen = false) => {
+            const boxId = authScreen ? 'auth-message-box' : 'message-box';
+            const box = document.getElementById(boxId);
+            box.textContent = text;
+            box.className = 'mt-4 p-3 rounded-lg text-sm';
+            
+            if (type === 'success') {
+                box.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                box.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'info') {
+                box.classList.add('bg-blue-100', 'text-blue-800');
+            }
+            box.classList.remove('hidden');
+            setTimeout(() => box.classList.add('hidden'), 5000);
+        };
+
+        /** Manages screen visibility */
+        const showScreen = (screenId) => {
+            const screens = ['auth-screen', 'signup-screen', 'app-container'];
+            screens.forEach(id => {
+                const screen = document.getElementById(id);
+                if (screen) {
+                    screen.classList.add('hidden');
+                }
+            });
+            const target = document.getElementById(screenId);
+            if (target) {
+                target.classList.remove('hidden');
+            }
+            // Clear auth messages when switching
+            document.getElementById('auth-message-box').classList.add('hidden');
+        };
+
+        /** Builds the path for a Firestore collection */
+        const getCollectionPath = (collectionName) => {
+            return `artifacts/${appId}/public/data/${collectionName}`;
+        };
+
+        // --- Core Firebase Initialization & Auth ---
+
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (error) {
+            console.error("Firebase Initialization Error:", error);
+            document.getElementById('orders-status').textContent = "Initialization Failed. Check console.";
+        }
+
+        /** Handles initial authentication and sets up the user ID. */
+        const setupAuthAndFirebase = async () => {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.warn("Initial Auth setup failed, falling back to onAuthStateChanged listener.", error);
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                const appContainer = document.getElementById('app-container');
+
+                if (user) {
+                    userId = user.uid;
+                    
+                    if (appContainer.classList.contains('hidden')) {
+                        document.getElementById('user-id-display').textContent = 'Anonymous session. Please Log In.';
+                        showScreen('auth-screen');
+                    }
+                    
+                } else {
+                    userId = null; 
+                    document.getElementById('user-id-display').textContent = 'Please Log In to Dispatch.';
+                    showScreen('auth-screen');
+                }
+            });
+        };
+
+        // --- Authentication Handlers (Local Check) ---
+
+        const getAuthCredentials = () => {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            return { email, password };
+        };
+
+        window.handleSignIn = async () => {
+            const { email, password } = getAuthCredentials();
+            
+            if (email === MOCK_WORKER_ID && password === MOCK_WORKER_PASS) {
+                
+                const user = auth.currentUser;
+                if (!user) {
+                     return showMessage("Authentication setup failed. Please refresh the page.", 'error', true);
+                }
+
+                document.getElementById('current-user-id').textContent = user.uid;
+                document.getElementById('user-id-display').textContent = `Worker: ${MOCK_WORKER_ID} (ID: ${user.uid})`;
+                
+                showScreen('app-container');
+                showMessage("Logged in successfully as Dispatcher!", 'success');
+                
+                setupDataListeners();
+                await checkAndInitializeMockData();
+                startRandomOrderArrival();
+
+            } else {
+                showMessage("Login Failed: Incorrect Worker ID or Password.", 'error', true);
+            }
+        };
+        
+        window.handleSignUp = () => {
+            showScreen('signup-screen');
+            document.getElementById('signup-email-local').value = '';
+            document.getElementById('signup-password').value = '';
+        };
+
+        window.goToLogin = () => {
+            showScreen('auth-screen');
+        };
+
+        window.completeSignUp = () => {
+            const emailLocal = document.getElementById('signup-email-local').value.trim();
+            const password = document.getElementById('signup-password').value.trim();
+            
+            if (emailLocal.length < 3) {
+                return showMessage("Worker ID prefix must be at least 3 characters.", 'error', true);
+            }
+            if (password.length < 6) {
+                return showMessage("Password must be at least 6 characters.", 'error', true);
+            }
+
+            MOCK_WORKER_ID = emailLocal + DOMAIN;
+            MOCK_WORKER_PASS = password;
+
+            showScreen('auth-screen');
+            document.getElementById('auth-email').value = MOCK_WORKER_ID;
+            document.getElementById('auth-password').value = '';
+
+            showMessage(`Success! Your new Worker ID (${MOCK_WORKER_ID}) has been registered. Please log in.`, 'success', true);
+        };
+
+
+        // --- Data Initialization & Random Order Logic ---
+
+        /** Generates a single random order object. */
+        const generateRandomOrderData = () => {
+            const name = CUSTOMER_NAMES[Math.floor(Math.random() * CUSTOMER_NAMES.length)];
+            const restaurantObj = RESTAURANTS[Math.floor(Math.random() * RESTAURANTS.length)];
+            const item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+            const estimatedValue = (Math.random() * 50 + 10).toFixed(2);
+            const streetNumber = Math.floor(Math.random() * 900) + 100;
+            const streetName = STREETS[Math.floor(Math.random() * STREETS.length)];
+            const deliveryAddress = `${streetNumber} ${streetName}`;
+
+            return {
+                customerName: name,
+                restaurant: restaurantObj.name,
+                restaurantLocationType: restaurantObj.type, // New field for distance calc
+                item: item,
+                estimatedValue: parseFloat(estimatedValue),
+                deliveryAddress: deliveryAddress,
+                status: 'New',
+                createdAt: serverTimestamp()
+            };
+        };
+
+        /** Adds a randomly generated order to the Firestore database. */
+        const addRandomOrderToFirestore = async () => {
+            if (!db) return;
+            const orderData = generateRandomOrderData();
+            try {
+                await addDoc(collection(db, getCollectionPath('orders')), orderData);
+            } catch (error) {
+                console.error("Error adding random order:", error);
+            }
+        };
+
+        /** Starts the continuous process of orders randomly arriving. */
+        const startRandomOrderArrival = () => {
+            const randomDelay = Math.random() * 10000 + 5000; 
+            setTimeout(async () => {
+                await addRandomOrderToFirestore();
+                startRandomOrderArrival();
+            }, randomDelay);
+        };
+
+
+        /** Checks if collections exist and initializes mock data if empty. */
+        const checkAndInitializeMockData = async () => {
+            const centersColRef = collection(db, getCollectionPath('centers'));
+
+            try {
+                // Check Centers and initialize if the collection is empty
+                const centerSnapshot = await getDocs(centersColRef);
+                if (centerSnapshot.empty) {
+                    for (const center of MOCK_CENTERS) {
+                        // Initialize only base properties, Firestore listener will track occupiedSlots
+                        await setDoc(doc(db, getCollectionPath('centers'), center.id), {
+                            name: center.name,
+                            maxCapacity: center.maxCapacity,
+                            occupiedSlots: 0, 
+                            locationType: center.locationType
+                        });
+                    }
+                    showMessage("Initial data setup complete (Dashing Centers created).", 'info');
+                }
+
+            } catch (error) {
+                console.error("Error initializing data:", error);
+                showMessage("Error initializing data. Check console.", 'error');
+            }
+        };
+
+
+        // --- Firestore Listeners ---
+
+        const setupDataListeners = () => {
+            if (!db || !userId) return;
+
+            // 1. Orders Listener (New/Pending)
+            const ordersQuery = query(collection(db, getCollectionPath('orders')), where("status", "in", ["New", "Pending"]));
+            onSnapshot(ordersQuery, (snapshot) => {
+                orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderOrders();
+                
+                // If the selected order status changes, clear selection
+                if (selectedOrder) {
+                    const stillExists = orders.find(o => o.id === selectedOrder.id && (o.status === 'New' || o.status === 'Pending'));
+                    if (!stillExists) {
+                        // FIX: Capture the name before clearing the selection
+                        const customerName = selectedOrder.customerName;
+
+                        clearSelection();
+                        showMessage(`Order ${customerName}'s status changed or was dispatched. Selection cleared.`, 'info');
+                    }
+                }
+            }, (error) => {
+                console.error("Orders listener error:", error);
+                document.getElementById('orders-status').textContent = "Error loading orders.";
+            });
+
+            // 2. Dashing Centers Listener (All Centers)
+            const centersQuery = collection(db, getCollectionPath('centers'));
+            onSnapshot(centersQuery, (snapshot) => {
+                centers = snapshot.docs.map(doc => ({ 
+                    id: doc.id, 
+                    ...doc.data(),
+                    // Calculate availability status dynamically
+                    isFull: doc.data().occupiedSlots >= doc.data().maxCapacity
+                }));
+                // Only render centers if an order is selected (as distance depends on it)
+                if (selectedOrder) {
+                    renderCenters();
+                } else {
+                    document.getElementById('centers-list').innerHTML = '<p class="text-center text-gray-500 mt-4">Select an order to view center availability and distance.</p>';
+                }
+            }, (error) => {
+                console.error("Centers listener error:", error);
+                document.getElementById('centers-status').textContent = "Error loading centers.";
+            });
+        };
+
+        // --- Rendering Functions ---
+
+        const renderOrders = () => {
+            const list = document.getElementById('orders-list');
+            list.innerHTML = '';
+
+            if (orders.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-500 mt-4">No new orders waiting for dispatch.</p>';
+                return;
+            }
+
+            orders.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+
+            orders.forEach(order => {
+                const isSelected = selectedOrder && selectedOrder.id === order.id;
+                const card = document.createElement('div');
+                card.id = `order-${order.id}`;
+                card.className = `order-card p-3 border border-red-300 rounded-lg shadow-sm ${isSelected ? 'selected' : 'bg-red-50'}`;
+                card.setAttribute('onclick', `window.selectOrder('${order.id}')`);
+                card.innerHTML = `
+                    <p class="font-bold text-lg text-red-800">${order.customerName}</p>
+                    <p class="text-sm text-gray-700">Restaurant: <span class="font-medium">${order.restaurant} (${order.restaurantLocationType})</span></p>
+                    <p class="text-sm text-gray-700">Order: ${order.item} ($${order.estimatedValue})</p>
+                    <p class="text-xs mt-1 text-gray-500 truncate">Address: ${order.deliveryAddress}</p>
+                    <p class="text-xs mt-1 text-red-600 font-semibold">${order.status.toUpperCase()}</p>
+                `;
+                list.appendChild(card);
+            });
+        };
+        
+        const renderCenters = () => {
+            const list = document.getElementById('centers-list');
+            list.innerHTML = '';
+
+            if (!selectedOrder) {
+                 list.innerHTML = '<p class="text-center text-gray-500 mt-4">Select an order to view center availability and distance.</p>';
+                 return;
+            }
+
+            if (centers.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-500 mt-4">No Dashing Centers found.</p>';
+                return;
+            }
+            
+            // Calculate distances based on the selected order's restaurant
+            const restaurantType = selectedOrder.restaurantLocationType;
+            const centersWithDistance = centers.map(center => ({
+                ...center,
+                distance: getCenterDistance(center.locationType, restaurantType)
+            }));
+
+            // --- REMOVED: centersWithDistance.sort((a, b) => a.distance - b.distance); 
+            // Centers will now stay in the order they were retrieved from Firestore. ---
+
+            centersWithDistance.forEach(center => {
+                const isSelected = selectedCenter && selectedCenter.id === center.id;
+                const isFull = center.isFull;
+                const card = document.createElement('div');
+                card.id = `center-${center.id}`;
+                card.className = `center-card p-3 border border-blue-300 rounded-lg shadow-sm ${isSelected ? 'selected' : 'bg-blue-50'} ${isFull ? 'full' : ''}`;
+                
+                // Only allow selection if not full
+                if (!isFull) {
+                    card.setAttribute('onclick', `window.selectCenter('${center.id}')`);
+                }
+
+                card.innerHTML = `
+                    <p class="font-bold text-lg text-blue-800">${center.name}</p>
+                    <p class="text-sm ${isFull ? 'text-gray-500' : 'text-gray-700'}">
+                        Dashers Out: <span class="font-medium">${center.occupiedSlots} / ${center.maxCapacity}</span>
+                    </p>
+                    <p class="text-sm text-red-600 font-semibold">
+                        Distance to ${selectedOrder.restaurant}: <span class="font-bold">${center.distance.toFixed(1)} mi</span>
+                    </p>
+                    ${isFull ? '<p class="text-sm font-semibold text-red-500 mt-1">CENTER IS FULL - UNAVAILABLE</p>' : ''}
+                `;
+                list.appendChild(card);
+            });
+            updateDispatchButton();
+            renderFinalCenterInfo();
+        };
+
+        const renderCenterDisplay = () => {
+            const infoDiv = document.getElementById('order-info');
+            const userDiv = document.getElementById('user-info');
+            
+            if (selectedOrder) {
+                infoDiv.textContent = `${selectedOrder.item} to ${selectedOrder.customerName} from ${selectedOrder.restaurant}`;
+                userDiv.innerHTML = `Value: $${selectedOrder.estimatedValue}. Status: ${selectedOrder.status}<br>
+                                     <span class="text-sm font-semibold text-orange-600">Initial Address: ${selectedOrder.deliveryAddress}</span>`;
+            } else {
+                infoDiv.textContent = 'Please select an order from the left panel.';
+                userDiv.textContent = '';
+            }
+        };
+
+        const renderFinalCenterInfo = () => {
+            const finalCenterDiv = document.getElementById('final-center-info');
+            if (selectedCenter) {
+                finalCenterDiv.innerHTML = `
+                    <p class="font-bold">${selectedCenter.name}</p>
+                    <p class="text-xs">Capacity: ${selectedCenter.occupiedSlots} / ${selectedCenter.maxCapacity} used.</p>
+                `;
+                finalCenterDiv.classList.replace('bg-blue-50', 'bg-green-50');
+                finalCenterDiv.classList.replace('border-blue-200', 'border-green-200');
+            } else {
+                finalCenterDiv.textContent = 'No Center selected.';
+                finalCenterDiv.classList.replace('bg-green-50', 'bg-blue-50');
+                finalCenterDiv.classList.replace('border-green-200', 'border-blue-200');
+            }
+        };
+
+        const updateDispatchButton = () => {
+            const button = document.getElementById('dispatch-button');
+            const address = document.getElementById('delivery-address').value.trim();
+            const ready = selectedOrder && selectedCenter && address.length > 5 && !selectedCenter.isFull;
+
+            button.disabled = !ready;
+            if (ready) {
+                button.classList.replace('bg-gray-400', 'bg-green-600');
+                button.classList.add('hover:bg-green-700');
+            } else {
+                button.classList.replace('bg-green-600', 'bg-gray-400');
+                button.classList.remove('hover:bg-green-700');
+            }
+        };
+
+        // --- Interaction Logic ---
+
+        window.selectOrder = (orderId) => {
+            const newOrder = orders.find(o => o.id === orderId);
+            if (!newOrder) return;
+            
+            // Clear previous visual selection
+            document.querySelectorAll('.order-card').forEach(card => card.classList.remove('selected'));
+            
+            // Set new selection
+            selectedOrder = newOrder;
+            document.getElementById(`order-${orderId}`).classList.add('selected');
+
+            // Pre-fill address
+            document.getElementById('delivery-address').value = newOrder.deliveryAddress || '';
+
+            // Render updates
+            renderCenterDisplay();
+            renderCenters(); // Crucial: Re-render centers to update distances based on this order
+            updateDispatchButton();
+        };
+
+        window.selectCenter = (centerId) => {
+            const newCenter = centers.find(d => d.id === centerId);
+            if (!newCenter || newCenter.isFull) return; // Prevent selecting a full center
+
+            // Clear previous visual selection
+            document.querySelectorAll('.center-card').forEach(card => card.classList.remove('selected'));
+            
+            // Set new selection
+            selectedCenter = newCenter;
+            document.getElementById(`center-${centerId}`).classList.add('selected');
+            
+            // Render updates
+            renderFinalCenterInfo();
+            updateDispatchButton();
+        };
+
+        document.getElementById('delivery-address').addEventListener('input', updateDispatchButton);
+
+        const clearSelection = () => {
+            selectedOrder = null;
+            selectedCenter = null;
+            document.querySelectorAll('.order-card').forEach(card => card.classList.remove('selected'));
+            document.querySelectorAll('.center-card').forEach(card => card.classList.remove('selected'));
+            document.getElementById('delivery-address').value = '';
+            renderCenterDisplay();
+            renderFinalCenterInfo();
+            renderCenters(); // Rerender centers to clear list/show waiting message
+            updateDispatchButton();
+        };
+
+        window.dispatchOrder = async () => {
+            const address = document.getElementById('delivery-address').value.trim();
+
+            const orderToDispatch = selectedOrder;
+            const centerToAssign = selectedCenter;
+
+            if (!orderToDispatch || !centerToAssign || !address) {
+                return showMessage("Please select an order, an available Center, and confirm the address.", 'error');
+            }
+            if (centerToAssign.isFull) {
+                return showMessage(`${centerToAssign.name} is full and cannot take another order.`, 'error');
+            }
+            
+            const orderId = orderToDispatch.id;
+            const customerName = orderToDispatch.customerName;
+            
+            const centerId = centerToAssign.id;
+            const centerName = centerToAssign.name;
+            const newOccupiedSlots = centerToAssign.occupiedSlots + 1; // Calculate new count
+
+            try {
+                // 1. Update Order Status
+                const orderRef = doc(db, getCollectionPath('orders'), orderId);
+                await updateDoc(orderRef, {
+                    status: 'Dispatched',
+                    centerId: centerId,
+                    centerName: centerName,
+                    deliveryAddress: address,
+                    dispatchedBy: userId,
+                    dispatchedAt: serverTimestamp()
+                });
+
+                // 2. Update Center Occupied Slots
+                const centerRef = doc(db, getCollectionPath('centers'), centerId);
+                await updateDoc(centerRef, {
+                    occupiedSlots: newOccupiedSlots
+                });
+
+                showMessage(`Order for ${customerName} dispatched via ${centerName}!`, 'success');
+                
+                clearSelection();
+                
+            } catch (error) {
+                console.error("Dispatch failed:", error);
+                showMessage("Dispatch failed due to a database error. Check console.", 'error');
+            }
+        };
+
+        // --- Start Application ---
+        setupAuthAndFirebase();
+    </script>
+</body>
+</html>
