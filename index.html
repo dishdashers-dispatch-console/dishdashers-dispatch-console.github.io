@@ -50,9 +50,16 @@
 <body class="p-4 md:p-8">
 
     <div class="max-w-7xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-5xl font-extrabold text-red-600 tracking-tighter">DishDashers Dispatch Center</h1>
-            <p id="user-id-display" class="mt-2 text-sm text-gray-500">Loading User Status...</p>
+        <header class="mb-8 flex justify-between items-start">
+            <div class="pt-2">
+                <h1 class="text-4xl font-extrabold text-red-600 tracking-tighter sm:text-5xl">DishDashers Dispatch Center</h1>
+                <p id="user-id-display" class="mt-1 text-sm text-gray-500">Loading User Status...</p>
+            </div>
+            <!-- Logout Button (Only visible when app-container is visible) -->
+            <button id="logout-button" onclick="handleLogout()"
+                    class="hidden mt-2 px-4 py-2 bg-gray-100 text-gray-600 font-semibold rounded-lg shadow-md hover:bg-gray-200 transition text-sm">
+                Log Out
+            </button>
         </header>
 
         <!-- 1. Authentication Screen (Initially Visible) -->
@@ -198,15 +205,31 @@
     <!-- Firebase Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, collection, setDoc, query, where, getDocs, updateDoc, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Setup
         setLogLevel('Debug');
+        
+        // --- START FIX FOR EXTERNAL HOSTING ---
+        // 1. HARDCODE CONFIG IF NOT IN CANVAS ENVIRONMENT
+        // This configuration uses the user's provided Firebase credentials.
+        const YOUR_FIREBASE_CONFIG_HERE = {
+            apiKey: "AIzaSyDwV_-6nnKhAFO0n7_EmxS5BmZVmOsu5Ro",
+            authDomain: "dishdashers-dispatch-console.firebaseapp.com",
+            projectId: "dishdashers-dispatch-console",
+            storageBucket: "dishdashers-dispatch-console.firebasestorage.app",
+            messagingSenderId: "751719584400",
+            appId: "1:751719584400:web:705e30dfd8358163ecbe15",
+            measurementId: "G-K1ST0839PS"
+        };
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Use the Canvas config if it exists, otherwise use the hardcoded config above.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : YOUR_FIREBASE_CONFIG_HERE; 
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --- END FIX FOR EXTERNAL HOSTING ---
 
         let app;
         let db;
@@ -290,6 +313,8 @@
         /** Manages screen visibility */
         const showScreen = (screenId) => {
             const screens = ['auth-screen', 'signup-screen', 'app-container'];
+            const logoutBtn = document.getElementById('logout-button');
+
             screens.forEach(id => {
                 const screen = document.getElementById(id);
                 if (screen) {
@@ -300,6 +325,13 @@
             if (target) {
                 target.classList.remove('hidden');
             }
+            // Toggle logout button visibility
+            if (screenId === 'app-container') {
+                logoutBtn.classList.remove('hidden');
+            } else {
+                logoutBtn.classList.add('hidden');
+            }
+
             // Clear auth messages when switching
             document.getElementById('auth-message-box').classList.add('hidden');
         };
@@ -312,24 +344,31 @@
         // --- Core Firebase Initialization & Auth ---
 
         try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
+            // Check if firebaseConfig is valid before initializing
+            if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey) {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+            } else {
+                throw new Error("Firebase config is missing or invalid.");
+            }
         } catch (error) {
             console.error("Firebase Initialization Error:", error);
-            document.getElementById('orders-status').textContent = "Initialization Failed. Check console.";
+            document.getElementById('orders-status').textContent = "Initialization Failed. Check console and ensure Firebase Config is set.";
         }
 
         /** Handles initial authentication and sets up the user ID. */
         const setupAuthAndFirebase = async () => {
             try {
+                // Use the custom token if provided (Canvas environment)
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
+                    // Fallback to anonymous sign-in for external hosting or missing token
                     await signInAnonymously(auth);
                 }
             } catch (error) {
-                console.warn("Initial Auth setup failed, falling back to onAuthStateChanged listener.", error);
+                console.warn("Initial Auth setup failed, ensuring fallback to onAuthStateChanged listener.", error);
             }
 
             onAuthStateChanged(auth, async (user) => {
@@ -338,8 +377,11 @@
                 if (user) {
                     userId = user.uid;
                     
+                    // If the user isn't logged in with the MOCK credentials, show the login screen
                     if (appContainer.classList.contains('hidden')) {
-                        document.getElementById('user-id-display').textContent = 'Anonymous session. Please Log In.';
+                        // Display user ID for debugging in external environments
+                        const displayEmail = MOCK_WORKER_ID; // Use mock email since Firebase doesn't know it
+                        document.getElementById('user-id-display').textContent = `User ID: ${user.uid} (Ready to Log In as ${displayEmail})`;
                         showScreen('auth-screen');
                     }
                     
@@ -362,11 +404,13 @@
         window.handleSignIn = async () => {
             const { email, password } = getAuthCredentials();
             
+            // The local check still determines if the user is a "worker"
             if (email === MOCK_WORKER_ID && password === MOCK_WORKER_PASS) {
                 
                 const user = auth.currentUser;
                 if (!user) {
-                     return showMessage("Authentication setup failed. Please refresh the page.", 'error', true);
+                     // This means Firebase initialization/anonymous sign-in failed.
+                     return showMessage("Authentication setup failed. Check console and Firebase config.", 'error', true);
                 }
 
                 document.getElementById('current-user-id').textContent = user.uid;
@@ -381,6 +425,24 @@
 
             } else {
                 showMessage("Login Failed: Incorrect Worker ID or Password.", 'error', true);
+            }
+        };
+
+        window.handleLogout = async () => {
+            try {
+                // Clear local state
+                orders = [];
+                centers = [];
+                selectedOrder = null;
+                selectedCenter = null;
+                
+                // Sign out of Firebase Auth (triggers onAuthStateChanged)
+                await signOut(auth);
+                showMessage("You have been successfully logged out.", 'info');
+                // The onAuthStateChanged listener will handle showing the auth screen
+            } catch (error) {
+                console.error("Logout failed:", error);
+                showMessage("Logout failed. Please try again.", 'error');
             }
         };
         
@@ -503,7 +565,7 @@
                 if (selectedOrder) {
                     const stillExists = orders.find(o => o.id === selectedOrder.id && (o.status === 'New' || o.status === 'Pending'));
                     if (!stillExists) {
-                        // FIX: Capture the name before clearing the selection
+                        // Capture the name before clearing the selection
                         const customerName = selectedOrder.customerName;
 
                         clearSelection();
@@ -587,8 +649,7 @@
                 distance: getCenterDistance(center.locationType, restaurantType)
             }));
 
-            // --- REMOVED: centersWithDistance.sort((a, b) => a.distance - b.distance); 
-            // Centers will now stay in the order they were retrieved from Firestore. ---
+            // Centers remain in the order retrieved from Firestore, as requested.
 
             centersWithDistance.forEach(center => {
                 const isSelected = selectedCenter && selectedCenter.id === center.id;
